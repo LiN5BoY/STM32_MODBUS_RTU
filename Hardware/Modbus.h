@@ -5,6 +5,6 @@
 
 
 void Data_Resolve(void);
-    
+extern uint16_t modbus_io[100];                                   // modbus¼Ä´æÆ÷ÄÚÊı¾İ
 
 #endif

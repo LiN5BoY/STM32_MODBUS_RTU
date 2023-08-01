@@ -1,16 +1,17 @@
 #include "stm32f10x.h"
 #include "Timer.h"
 #include "Serial.h"
-uint8_t Serial_TxPacket[100] = {0};                             // 发送内容
-extern uint8_t Serial_RxPacket[100];                          // 接收内容
+uint8_t Serial_TxPacket[100] = {0};                        // 发送内容
+extern uint8_t Serial_RxPacket[100];                       // 接收内容
 extern uint16_t Serial_RxLength;
 
-uint16_t modbus_io[100];                                   // modbus寄存器内数据
-uint16_t modbus_id = 0X01;                                    // id号
+extern uint16_t modbus_io[100];                                   // modbus寄存器内数据
+// uint16_t modbus_id = 0X01;                              // id号
 uint16_t modbus_function;                                  // 功能码
 uint16_t modbus_check;                                     // 校验位
 uint16_t modbus_packege_times = 0;                         // 总包计数
 uint16_t CRC_check_result;                                 // CRC校验的结果
+
 
 
 uint16_t calculate_crc16(const uint8_t *data, size_t len) {
@@ -39,8 +40,40 @@ uint16_t calculate_crc16(const uint8_t *data, size_t len) {
 }
 
 
+void Data_Funcion_3(void){
+    Serial_TxPacket[0] = Serial_RxPacket[0];       // ID
+    Serial_TxPacket[1] = Serial_RxPacket[1];       // 功能码
+    // 字节长度，根据接收的内容4，5位来判断
+    Serial_TxPacket[2] = (Serial_RxPacket[4] << 8 | Serial_RxPacket[5]) * 2;
 
 
+    for(modbus_packege_times = 0;modbus_packege_times<Serial_TxPacket[2];modbus_packege_times+=2)
+    {
+        Serial_TxPacket[3+modbus_packege_times] = modbus_io[modbus_packege_times / 2] >> 8;
+        Serial_TxPacket[4+modbus_packege_times] = modbus_io[modbus_packege_times / 2];
+    }         
+    // 校验码
+    CRC_check_result = calculate_crc16(Serial_TxPacket,Serial_TxPacket[2] + 3);
+    Serial_TxPacket[3+modbus_packege_times] = (CRC_check_result) & 0xFF;
+    Serial_TxPacket[4+modbus_packege_times] = (CRC_check_result>>8) & 0xFF;
+
+
+      
+
+    Serial_SendArray(Serial_TxPacket,5+modbus_packege_times);
+    return ;
+}
+
+
+void Data_Funcion_6(void){
+    // Serial_TxPacket[0] = Serial_RxPacket[0];       // ID
+    // Serial_TxPacket[1] = Serial_RxPacket[1];               // 功能码
+    modbus_io[Serial_RxPacket[3] - 1] = Serial_RxPacket[4];         
+    modbus_io[Serial_RxPacket[3]] = Serial_RxPacket[5];
+    
+    Serial_SendArray(Serial_RxPacket,Serial_RxLength);
+    return ;
+}
 
 
 void Data_Resolve(void){
@@ -50,30 +83,17 @@ void Data_Resolve(void){
     
     if(modbus_check != 0)                                  // 校验是否通过
     {   
-
-        if(modbus_id == Serial_RxPacket[0]){           // 确认id号是否一致
+        Serial_TxPacket[0] = 0x01;                         // 预设id
+        if(Serial_RxPacket[0] == Serial_TxPacket[0]){           // 确认id号是否一致
 
             modbus_function = Serial_RxPacket[1];
             switch(modbus_function)
             { 
                 case 3 :                            // 根据03功能码，主机要求从机反馈内容 
-                    Serial_TxPacket[0] = modbus_id;       // ID
-                    Serial_TxPacket[1] = 3;               // 功能码
-                    // 字节长度，根据接收的内容4，5位来判断
-                    Serial_TxPacket[2] = (Serial_RxPacket[4] << 8 | Serial_RxPacket[5]) * 2;
-                    for(modbus_packege_times = 0;modbus_packege_times<Serial_TxPacket[2];modbus_packege_times+=2)
-                    {
-                        Serial_TxPacket[3+modbus_packege_times] = modbus_io[Serial_RxPacket[4] << 8 | Serial_RxPacket[5] + modbus_packege_times / 2] >> 8;
-                        Serial_TxPacket[4+modbus_packege_times] = modbus_io[Serial_RxPacket[4] << 8 | Serial_RxPacket[5] + modbus_packege_times / 2];
-                    }               
-                    // 校验码
-                    CRC_check_result = calculate_crc16(Serial_TxPacket,Serial_TxPacket[2] + 3);
-                    Serial_TxPacket[3+modbus_packege_times] = (CRC_check_result) & 0xFF;
-                    Serial_TxPacket[4+modbus_packege_times] = (CRC_check_result>>8) & 0xFF;
-                    Serial_SendArray(Serial_TxPacket,5+modbus_packege_times);
+                    Data_Funcion_3();
                     break;
                 case 6 :
-                    Serial_SendArray(Serial_TxPacket,Serial_RxLength);
+                    Data_Funcion_6();
                     break;
                 case 16 :
                     Serial_SendArray(Serial_TxPacket,Serial_RxLength);
@@ -88,3 +108,7 @@ void Data_Resolve(void){
     Serial_RxFlag = 0;
     Serial_RxLength = 0;
 }
+
+
+
+
