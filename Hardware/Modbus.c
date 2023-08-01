@@ -95,9 +95,9 @@ void Data_Resolve(void){
                 case 6 :
                     Data_Funcion_6();
                     break;
-                case 16 :
-                    Serial_SendArray(Serial_TxPacket,Serial_RxLength);
-                    break;
+                // case 16 :
+                //     Serial_SendArray(Serial_TxPacket,Serial_RxLength);
+                //     break;
                 default :
                     break;
             }
